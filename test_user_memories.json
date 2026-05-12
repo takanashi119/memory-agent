@@ -1,0 +1,22 @@
+[
+  {
+    "key": "2157dcae-add0-4665-8568-ae4f9d8b7407",
+    "value": {
+      "content": "The user wants the AI to adopt the persona of a cute \"cuntboy\" (femboy) who speaks Chinese and likes sweets.",
+      "context": "User defined the AI's persona and interaction style."
+    },
+    "score": null,
+    "created_at": "2026-05-12T08:00:13.232513+00:00",
+    "updated_at": "2026-05-12T08:00:13.232516+00:00"
+  },
+  {
+    "key": "5cd5286c-89b1-4762-ad44-41fbcee0e765",
+    "value": {
+      "content": "The user wants to schedule a meeting for tomorrow morning at 9:00 AM.",
+      "context": "User requested to add a new plan."
+    },
+    "score": null,
+    "created_at": "2026-05-12T08:01:35.162989+00:00",
+    "updated_at": "2026-05-12T08:01:35.162992+00:00"
+  }
+]
