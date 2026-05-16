@@ -1,0 +1,279 @@
+email_id: <14867848.1075842520714.JavaMail.evans@thyme>
+
+sender: drew.fossum@enron.com
+
+subject: CNG
+
+body: Has the old adversary adopted an "if you can't beat em, join em" strategy?  I 
+noticed that CNG is planning to build some high deliverability storage.  More 
+competition is always a problem, but at least that is a vindication of the 
+MHP strategy.  I noticed Vaina was quoted in the trade press.  Is he the man 
+on Tioga now?  DF     
+
+received_at: 2026-05-16T18:08:15.660072
+
+normalized_body: Has the old adversary adopted an "if you can't beat em, join em" strategy? I noticed that CNG is planning to build some high deliverability storage. More competition is always a problem, but at least that is a vindication of the MHP strategy. I noticed Vaina was quoted in the trade press. Is he the man on Tioga now? DF
+
+related_memories: []
+
+summary: Drew Fossum inquires about a competitor's new high deliverability storage project, noting it validates the MHP strategy, and asks if Vaina is now handling the Tioga project following trade press coverage.
+
+classification: important
+
+key_info: {'sender': 'Drew Fossum', 'competitor_activity': 'CNG planning high deliverability gas storage', 'strategy_impact': 'Validates internal MHP strategy', 'personnel_query': 'Vaina quoted in trade press, possibly assigned to Tioga project'}
+
+memories_to_save: [{'content': 'Competitor CNG is expanding high deliverability storage capacity, which validates the internal MHP strategy.', 'context': "Inferred from sender noting competitor's storage plans as confirmation of their own strategy."}, {'content': 'Vaina may be leading or assigned to the Tioga project following recent trade press coverage.', 'context': 'Direct inquiry from the email about personnel assignment tied to public visibility.'}]
+
+stored_memories: ['Stored memory 0b94f110-a9a7-4ca1-aa4e-9da98308bee7', 'Stored memory 77d6a19e-32a9-4624-a011-5eecc2c159dd']
+
+action: ask_user
+
+draft_reply: None
+
+email_id: <5851320.1075857270502.JavaMail.evans@thyme>
+
+sender: jonathan.hoff@enron.com
+
+subject: Tonight's Homework
+
+body: Const TOLERANCE = 0.1
+Const TOLERANCE2 = 0.5
+Sub CustomCurve()
+    Dim adder As Double
+    Dim i As Integer
+    Dim newValue As Double
+    Range("B28:B32").Select
+    Selection.Copy
+    Selection.PasteSpecial Paste:=xlValues
+    Application.CutCopyMode = False
+    [b28].Select
+    For i = 2001 To 2005
+        adder = 1
+        While Abs([d28].Offset((i - 2001), 0)) > TOLERANCE
+            If Abs([d28].Offset((i - 2001), 0)) / [d28].Offset((i - 2001), 0) 
+= _
+                    Abs(adder) / adder Then adder = adder / -10
+            newValue = [b28].Offset((i - 2001), 0) + adder
+            [b28].Offset((i - 2001), 0) = newValue
+        Wend
+    Next i
+End Sub
+Sub FlatLine()
+    Dim adder As Double
+    Dim i As Integer
+    Dim newValue As Double
+    Range("b28").Select
+    Selection.Copy
+    Selection.PasteSpecial Paste:=xlValues
+    Application.CutCopyMode = False
+    For i = 2002 To 2005
+        [b29].Offset((i - 2002), 0) = "=$B$28"
+    Next i
+    adder = 1
+    While Abs([d33]) > TOLERANCE2
+        If Abs([d33]) / [d33] = Abs(adder) / adder Then adder = adder / -10
+        newValue = [b28] + adder
+        [b28] = newValue
+    Wend
+End Sub
+
+received_at: 2026-05-16T18:09:58.597147
+
+normalized_body: Const TOLERANCE = 0.1 Const TOLERANCE2 = 0.5 Sub CustomCurve() Dim adder As Double Dim i As Integer Dim newValue As Double Range("B28:B32").Select Selection.Copy Selection.PasteSpecial Paste:=xlValues Application.CutCopyMode = False [b28].Select For i = 2001 To 2005 adder = 1 While Abs([d28].Offset((i - 2001), 0)) > TOLERANCE If Abs([d28].Offset((i - 2001), 0)) / [d28].Offset((i - 2001), 0) = _ Abs(adder) / adder Then adder = adder / -10 newValue = [b28].Offset((i - 2001), 0) + adder [b28].Offset((i - 2001), 0) = newValue Wend Next i End Sub Sub FlatLine() Dim adder As Double Dim i As Integer Dim newValue As Double Range("b28").Select Selection.Copy Selection.PasteSpecial Paste:=xlValues Application.CutCopyMode = False For i = 2002 To 2005 [b29].Offset((i - 2002), 0) = "=$B$28" Next i adder = 1 While Abs([d33]) > TOLERANCE2 If Abs([d33]) / [d33] = Abs(adder) / adder Then adder = adder / -10 newValue = [b28] + adder [b28] = newValue Wend End Sub
+
+related_memories: ['[0b94f110-a9a7-4ca1-aa4e-9da98308bee7]: {\'content\': \'Competitor CNG is expanding high deliverability storage capacity, which validates the internal MHP strategy.\', \'context\': "Inferred from sender noting competitor\'s storage plans as confirmation of their own strategy."}', "[77d6a19e-32a9-4624-a011-5eecc2c159dd]: {'content': 'Vaina may be leading or assigned to the Tioga project following recent trade press coverage.', 'context': 'Direct inquiry from the email about personnel assignment tied to public visibility.'}"]
+
+summary: Email from Jonathan Hoff containing VBA Excel macros (CustomCurve and FlatLine) intended for iterative data adjustment and financial modeling, referenced as 'Tonight's Homework'.
+
+classification: task
+
+key_info: {'sender': 'Jonathan Hoff', 'subject': "Tonight's Homework", 'content_type': 'VBA Excel Macros', 'purpose': 'Data modeling and range manipulation script'}
+
+memories_to_save: []
+
+stored_memories: []
+
+action: archive
+
+draft_reply: None
+
+email_id: <7161712.1075847086066.JavaMail.evans@thyme>
+
+sender: hollymitchell@dwt.com
+
+subject: RE: Bellingham Cold Storage ISDA Master Agreement
+
+body: We'll try the one we have. Thanks
+
+> -----Original Message-----
+> From: Tana.Jones@enron.com [SMTP:Tana.Jones@enron.com]
+> Sent: Friday, June 30, 2000 3:37 PM
+> To: Mitchell, Holly
+> Subject: Re: Bellingham Cold Storage ISDA Master Agreement
+>
+>
+> We really haven't used the Local Currency form in several years.  We found
+> that we were getting requests to switch to the Multicurrency Form so
+> frequently that we made the Multicurrency our primary form.  In the long
+> run we have found that the Multicurrency Form gives us the most
+> flexibility
+> as the trading markets become more international in nature.  If you prefer
+> the Local Currency it may take me asome time when we get back on Wednesday
+> to compare the forms and convert the document over.  Please let me know if
+> that is your preference.
+>
+>
+>
+>
+>                     "Mitchell,
+>
+>                     Holly"               To:     "'Tana Jones '"
+> <Tana.Jones@enron.com>
+>                     <hollymitchel        cc:     "Cameron, John"
+> <johncameron@DWT.COM>
+>                     l@dwt.com>           Subject:     Bellingham Cold
+> Storage ISDA Master Agreement
+>
+>
+>                     06/30/2000
+>
+>                     05:15 PM
+>
+>
+>
+>
+>
+>
+>
+>
+>
+> Thanks for the copy of the draft Agreements. Do you have a Local Currency
+> -
+> Single Jurisdiction version of this agreement? Since this is a single, one
+> time transaction that would be a better agreement for us. Thanks
+>
+> 
+
+received_at: 2026-05-16T18:11:28.724435
+
+normalized_body: We'll try the one we have. Thanks > -----Original Message----- > From: Tana.Jones@enron.com [SMTP:Tana.Jones@enron.com] > Sent: Friday, June 30, 2000 3:37 PM > To: Mitchell, Holly > Subject: Re: Bellingham Cold Storage ISDA Master Agreement > > > We really haven't used the Local Currency form in several years. We found > that we were getting requests to switch to the Multicurrency Form so > frequently that we made the Multicurrency our primary form. In the long > run we have found that the Multicurrency Form gives us the most > flexibility > as the trading markets become more international in nature. If you prefer > the Local Currency it may take me asome time when we get back on Wednesday > to compare the forms and convert the document over. Please let me know if > that is your preference. > > > > > "Mitchell, > > Holly" To: "'Tana Jones '" > > > l@dwt.com> Subject: Bellingham Cold > Storage ISDA Master Agreement > > > 06/30/2000 > > 05:15 PM > > > > > > > > > > Thanks for the copy of the draft Agreements. Do you have a Local Currency > - > Single Jurisdiction version of this agreement? Since this is a single, one > time transaction that would be a better agreement for us. Thanks > >
+
+related_memories: ['[0b94f110-a9a7-4ca1-aa4e-9da98308bee7]: {\'content\': \'Competitor CNG is expanding high deliverability storage capacity, which validates the internal MHP strategy.\', \'context\': "Inferred from sender noting competitor\'s storage plans as confirmation of their own strategy."}', "[77d6a19e-32a9-4624-a011-5eecc2c159dd]: {'content': 'Vaina may be leading or assigned to the Tioga project following recent trade press coverage.', 'context': 'Direct inquiry from the email about personnel assignment tied to public visibility.'}"]
+
+summary: Holly Mitchell confirms they will proceed with the existing Multicurrency ISDA Master Agreement form for the Bellingham Cold Storage transaction, rather than converting it to the requested Local Currency version.
+
+classification: important
+
+key_info: {'counterparty': 'Bellingham Cold Storage', 'document_type': 'ISDA Master Agreement', 'selected_form': 'Multicurrency', 'status': 'Proceeding with existing draft'}
+
+memories_to_save: [{'content': 'The Bellingham Cold Storage transaction will use the Multicurrency ISDA Master Agreement form.', 'context': "Inferred from the sender's confirmation to proceed with the current form instead of converting to the requested Local Currency version."}]
+
+stored_memories: ['Stored memory 3c7e9c1d-24d6-4c9e-87c8-135f82ef3596']
+
+action: archive
+
+draft_reply: None
+
+email_id: <6822410.1075851604888.JavaMail.evans@thyme>
+
+sender: jbennett@gmssr.com
+
+subject: FW: A.00-11-038 et al. ABAG POWER Petition for Modification of D.	01-05-064
+
+body: Attached is a petition for modification of Decision 01-05-064 (the rate
+design decision) filed by the Association of Bay Area Governments. The
+Petition requests that the decision be modified to exempt customers which
+were direct access for the period of March through May 2001 from the 12
+month procurement surcharge which is designed to allow the utilities to
+collect the three cent increase authorized by the March decision which then
+did not go into effect until June (i.e., collect the revenues foregone due
+to the time lag in implementation).
+
+Given the fact that most of Enron's customers were on bundled service during
+the March-June time frame, I do not believe that the requested modification
+would provide them any benefit. Let me know if I am wrong on this and if
+Enron wants to chime in  in support of ABAG's petition.
+
+Jeanne Bennett
+
+-----Original Message-----
+From: Dan Douglass [mailto:douglass@energyattorney.com]
+Sent: Friday, July 13, 2001 5:31 PM
+To:
+Subject: Re: A.00-11-038 et al. ABAG POWER Petition for Modification of
+D.01-05-064
+Importance: High
+
+
+Attached for your information is a copy of the Petition for Modification of
+D.01-05-064 filed today by ABAG POWER.  Copies have also been sent to all
+parties on the service list by U.S. Mail.
+
+Law Offices of Daniel W. Douglass
+5959 Topanga Canyon Blvd.  Suite 244
+Woodland Hills, CA 91367
+Tel:   (818) 596-2201
+Fax:  (818) 346-6502
+douglass@energyattorney.com
+
+
+ - 7-13-01 Petition for Modification of D.01-05-064 - Final.doc 
+
+received_at: 2026-05-16T18:13:23.971519
+
+normalized_body: Attached is a petition for modification of Decision 01-05-064 (the rate design decision) filed by the Association of Bay Area Governments. The Petition requests that the decision be modified to exempt customers which were direct access for the period of March through May 2001 from the 12 month procurement surcharge which is designed to allow the utilities to collect the three cent increase authorized by the March decision which then did not go into effect until June (i.e., collect the revenues foregone due to the time lag in implementation). Given the fact that most of Enron's customers were on bundled service during the March-June time frame, I do not believe that the requested modification would provide them any benefit. Let me know if I am wrong on this and if Enron wants to chime in in support of ABAG's petition. Jeanne Bennett -----Original Message----- From: Dan Douglass [mailto:douglass@energyattorney.com] Sent: Friday, July 13, 2001 5:31 PM To: Subject: Re: A.00-11-038 et al. ABAG POWER Petition for Modification of D.01-05-064 Importance: High Attached for your information is a copy of the Petition for Modification of D.01-05-064 filed today by ABAG POWER. Copies have also been sent to all parties on the service list by U.S. Mail. Law Offices of Daniel W. Douglass 5959 Topanga Canyon Blvd. Suite 244 Woodland Hills, CA 91367 Tel: (818) 596-2201 Fax: (818) 346-6502 douglass@energyattorney.com - 7-13-01 Petition for Modification of D.01-05-064 - Final.doc
+
+related_memories: ['[3c7e9c1d-24d6-4c9e-87c8-135f82ef3596]: {\'content\': \'The Bellingham Cold Storage transaction will use the Multicurrency ISDA Master Agreement form.\', \'context\': "Inferred from the sender\'s confirmation to proceed with the current form instead of converting to the requested Local Currency version."}', "[77d6a19e-32a9-4624-a011-5eecc2c159dd]: {'content': 'Vaina may be leading or assigned to the Tioga project following recent trade press coverage.', 'context': 'Direct inquiry from the email about personnel assignment tied to public visibility.'}", '[0b94f110-a9a7-4ca1-aa4e-9da98308bee7]: {\'content\': \'Competitor CNG is expanding high deliverability storage capacity, which validates the internal MHP strategy.\', \'context\': "Inferred from sender noting competitor\'s storage plans as confirmation of their own strategy."}']
+
+summary: Jeanne Bennett forwards a petition by ABAG POWER to modify Decision D.01-05-064, seeking a surcharge exemption for direct access customers during March-May 2001. She notes Enron's customers were mostly on bundled service then, rendering the petition irrelevant, and asks if Enron should officially support it.
+
+classification: task
+
+key_info: {'petition': 'ABAG POWER petition to modify D.01-05-064', 'issue': '12-month procurement surcharge exemption for direct access customers (Mar-May 2001)', 'enron_relevance': 'Low; Enron customers were primarily on bundled service during the period', 'asked_action': 'Determine if Enron should officially support the petition'}
+
+memories_to_save: [{'content': 'Decision D.01-05-064 established a 12-month procurement surcharge to recapture revenues from a lagged March-June 2001 rate increase.', 'context': "Inferred from the petition's focus on waiving this surcharge for customers active during the transition period."}, {'content': "Enron's customer base was predominantly on bundled service during the March-June 2001 transition, making direct-access surcharge exemptions irrelevant to the company.", 'context': "Inferred from Jeanne Bennett's internal analysis of Enron's customer status during the relevant period."}]
+
+stored_memories: ['Stored memory 5125542b-a48a-4ae5-91dc-3594d78f841f', 'Stored memory 02006b81-1fda-4fc5-953c-78771fb8ca31']
+
+action: draft_reply
+
+draft_reply: Thanks for the summary and the petition details. You are correct that this modification won't benefit Enron given our bundled service majority during the Mar-Jun 2001 period. I recommend we do not chime in at this time. Please hold off on any filings unless regulatory counsel advises a strategic counter-position. Let me know if you need a formal non-participation notice drafted.
+
+email_id: <27604011.1075840858207.JavaMail.evans@thyme>
+
+sender: timothy.callahan@enron.com
+
+subject: Immigration Update
+
+body: Louise and Marcus,
+
+We're still in the waiting period with the green card process.
+
+I confirmed that Louise can elect to participate in the domestic health plan. This will allow participation in the prescription drug program and a network option with co-payments, rather than turning in all receipts for reimbursement.  As we discussed, you do not want any changes until after the baby is born.  Let me know when you would like to get together to discuss the advantages/disadvantages of switching to the domestic plan.  
+
+PwC sent over a draft of their deferred compensation scheme today.  I have forwarded to the compensation team for review and comment.
+
+Try to send over a copy of Louise's new social security card this week.  Also, we would like to follow up on your unreimbursed medical claims.
+
+Regards,  
+
+received_at: 2026-05-16T18:15:52.723459
+
+normalized_body: Louise and Marcus, We're still in the waiting period with the green card process. I confirmed that Louise can elect to participate in the domestic health plan. This will allow participation in the prescription drug program and a network option with co-payments, rather than turning in all receipts for reimbursement. As we discussed, you do not want any changes until after the baby is born. Let me know when you would like to get together to discuss the advantages/disadvantages of switching to the domestic plan. PwC sent over a draft of their deferred compensation scheme today. I have forwarded to the compensation team for review and comment. Try to send over a copy of Louise's new social security card this week. Also, we would like to follow up on your unreimbursed medical claims. Regards,
+
+related_memories: ['[3c7e9c1d-24d6-4c9e-87c8-135f82ef3596]: {\'content\': \'The Bellingham Cold Storage transaction will use the Multicurrency ISDA Master Agreement form.\', \'context\': "Inferred from the sender\'s confirmation to proceed with the current form instead of converting to the requested Local Currency version."}', '[02006b81-1fda-4fc5-953c-78771fb8ca31]: {\'content\': "Enron\'s customer base was predominantly on bundled service during the March-June 2001 transition, making direct-access surcharge exemptions irrelevant to the company.", \'context\': "Inferred from Jeanne Bennett\'s internal analysis of Enron\'s customer status during the relevant period."}', "[77d6a19e-32a9-4624-a011-5eecc2c159dd]: {'content': 'Vaina may be leading or assigned to the Tioga project following recent trade press coverage.', 'context': 'Direct inquiry from the email about personnel assignment tied to public visibility.'}", '[5125542b-a48a-4ae5-91dc-3594d78f841f]: {\'content\': \'Decision D.01-05-064 established a 12-month procurement surcharge to recapture revenues from a lagged March-June 2001 rate increase.\', \'context\': "Inferred from the petition\'s focus on waiving this surcharge for customers active during the transition period."}', '[0b94f110-a9a7-4ca1-aa4e-9da98308bee7]: {\'content\': \'Competitor CNG is expanding high deliverability storage capacity, which validates the internal MHP strategy.\', \'context\': "Inferred from sender noting competitor\'s storage plans as confirmation of their own strategy."}']
+
+summary: Tim Callahan provides an administrative update for Louise and Marcus regarding green card status, confirms Louise's eligibility for a domestic health plan, notes that plan changes will be deferred until after the baby's birth, forwards a PwC deferred compensation draft to the compensation team, requests Louise's new SSN card, and follows up on medical claims.
+
+classification: personal_info
+
+key_info: {'green_card_status': 'Waiting period ongoing', 'health_plan_option': 'Eligible for domestic plan with prescription drug network and co-pay option', 'plan_change_decision': 'Deferred until after baby is born', 'deferred_compensation': 'PwC draft forwarded to compensation team for review', 'requested_document': "Copy of Louise's new SSN card needed this week", 'pending_admin': 'Unreimbursed medical claims follow-up'}
+
+memories_to_save: [{'content': "Louise is eligible for the domestic health plan with a prescription drug network and co-pay option; decision on switching is deferred until after the baby's birth.", 'context': 'Explicitly stated in the email as a confirmed benefit election with a deferred decision point.'}, {'content': 'PwC deferred compensation scheme draft was submitted to the Enron compensation team for internal review.', 'context': 'Mentioned as a forwarded document requiring compensation team action.'}]
+
+stored_memories: ['Stored memory edeb9bda-4051-4da4-93d5-c10f7b86a915', 'Stored memory 007a0b9e-1493-414a-803f-f7653d5b1c95']
+
+action: draft_reply
+
+draft_reply: Thank you for the update. We will coordinate sending over a copy of Louise's new SSN card this week. We've noted the domestic health plan options and will hold off on any changes until after the baby is born. Please keep us posted on the compensation team's feedback regarding the PwC draft, and let us know when you're available to meet to discuss the plan switching trade-offs. We'll also follow up on the medical claims shortly. Best regards,
+
