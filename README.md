@@ -65,6 +65,54 @@ You can review the saved memories by clicking the "memory" button.
 
 This chat bot reads from your memory graph's `Store` to easily list extracted memories. If it calls a tool, LangGraph will route to the `store_memory` node to save the information to the store.
 
+## Gmail ingestion
+
+To process real Gmail messages, enable the Gmail API in Google Cloud, create an OAuth desktop client, and download it as `credentials.json` in the project root. The first run opens a browser consent flow and writes `token.json`; both files are ignored by git.
+
+```python
+from memory_agent.context import Context
+from memory_agent.email_graph import builder
+from memory_agent.gmail_client import process_gmail_messages
+
+email_graph = builder.compile(store=store)
+
+results = await process_gmail_messages(
+    email_graph,
+    context=Context(user_id="default"),
+    config={"configurable": {"thread_id": "gmail-import"}},
+    query="in:inbox newer_than:7d",
+    max_results=10,
+)
+```
+
+Gmail's native `threadId` is passed into the email graph, so messages in the same Gmail conversation share the same email-thread context.
+
+### Gmail listener entrypoint
+
+You can also run a polling listener that watches Gmail for matching inbox messages,
+sends each new message through the email graph, and prints the result as soon as it
+finishes.
+
+```bash
+uv run gmail-listener --token token_main.json --query "in:inbox newer_than:1d" --poll-seconds 60
+```
+
+For a one-shot smoke test:
+
+```bash
+uv run gmail-listener --token token_main.json --once --max-results 3
+```
+
+The listener stores processed Gmail message IDs in `.gmail_listener_state.json` so
+it does not process the same message again after restarting. The local entrypoint
+uses an in-memory LangGraph store for extracted memories during the process
+lifetime; for durable memory across restarts, run the graph with a persistent
+LangGraph store.
+
+The command is assembled in `memory_agent.cli`, while `gmail_listener` only polls
+Gmail and `email_service` owns message de-duplication, graph invocation, and user
+feedback.
+
 ## How to evaluate
 
 Memory management can be challenging to get right, especially if you add additional tools for the bot to choose between.

@@ -9,7 +9,13 @@ __pycache__/
 
 # memory
 *memories.json
-
+# Gmail OAuth credentials and user tokens
+credentials.json
+token.json
+token_main.json
+.gmail_listener_state.json
+#dataset
+*.csv
 # Distribution / packaging
 .Python
 build/

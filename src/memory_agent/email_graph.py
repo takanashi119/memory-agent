@@ -19,6 +19,12 @@ from memory_agent.context import Context
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIEVAL_QUERY_CHARS = 400
+MAX_ANALYSIS_BODY_CHARS = 1_500
+MAX_RELATED_MEMORY_CHARS = 1_000
+MAX_THREAD_CONTEXT_CHARS = 2_000
+MAX_THREAD_HISTORY_ITEMS = 12
+
 
 EMAIL_ANALYSIS_PROMPT = """You process a single email for a personal memory agent.
 
@@ -35,19 +41,30 @@ advertisements, newsletters, or full email bodies.
 Return strict JSON with this shape:
 {{
   "summary": "short summary",
-  "classification": "important|meeting|task|personal_info|newsletter|low_priority|unknown",
+  "priority": "important|normal|low",
+  "classification": "meeting|task|personal_info|newsletter|junk|unknown",
   "key_info": {{}},
   "memories_to_save": [
-    {{"content": "durable memory", "context": "why this was inferred from this email"}}
+    {{
+    "content": "durable memory", 
+    "context": "why this was inferred from this email",
+    ""
+    }}
   ],
   "action": "draft_reply|create_todo|archive|ignore|ask_user",
   "draft_reply": null
 }}
 
+User email preferences:
+{email_preferences}
+
 Current time: {time}
 
 Related existing memories:
 {related_memories}
+
+Earlier emails in the same conversation:
+{thread_context}
 """
 
 
@@ -57,6 +74,9 @@ class EmailState:
 
     email_id: str
     """Stable external ID for the email."""
+
+    thread_id: str | None = None
+    """Stable conversation/thread ID for related emails."""
 
     sender: str
     """Email sender address or display name."""
@@ -76,6 +96,9 @@ class EmailState:
     related_memories: list[str] = field(default_factory=list)
     """Existing memories retrieved for context."""
 
+    thread_context: list[str] = field(default_factory=list)
+    """Earlier emails from the same conversation thread."""
+
     summary: str | None = None
     classification: str | None = None
     key_info: dict[str, Any] = field(default_factory=dict)
@@ -91,6 +114,31 @@ def _strip_html(value: str) -> str:
     text = re.sub(r"(?s)<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _truncate_text(value: str, limit: int) -> str:
+    """Keep model and embedding inputs inside small context windows."""
+    if len(value) <= limit:
+        return value
+    return value[:limit].rstrip() + "\n...[truncated]"
+
+
+def _normalize_subject(subject: str) -> str:
+    """Produce a stable fallback thread key from a mail subject."""
+    normalized = subject.strip().lower()
+    normalized = re.sub(r"^(\s*(re|fw|fwd)\s*:\s*)+", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized or "untitled"
+
+
+def _derive_thread_id(state: EmailState) -> str:
+    """Use explicit thread IDs first, falling back to normalized subjects."""
+    return state.thread_id or f"subject:{_normalize_subject(state.subject)}"
+
+
+def _thread_namespace(user_id: str, thread_id: str) -> tuple[str, str, str]:
+    """Namespace used for per-user, per-email-thread history."""
+    return ("email_threads", user_id, thread_id)
 
 
 def _coerce_analysis(value: str) -> dict[str, Any]:
@@ -133,7 +181,39 @@ async def normalize_email(state: EmailState) -> dict[str, str]:
     return {
         "normalized_body": _strip_html(state.body),
         "received_at": state.received_at or datetime.now().isoformat(),
+        "thread_id": _derive_thread_id(state),
     }
+
+
+async def retrieve_thread_context(
+    state: EmailState, runtime: Runtime[Context]
+) -> dict[str, list[str]]:
+    """Fetch earlier emails from the same email conversation."""
+    if runtime.store is None or not state.thread_id:
+        return {"thread_context": []}
+
+    history = await cast(BaseStore, runtime.store).asearch(
+        _thread_namespace(runtime.context.user_id, state.thread_id),
+        limit=MAX_THREAD_HISTORY_ITEMS,
+    )
+
+    items = []
+    for item in history:
+        if item.key == state.email_id or not isinstance(item.value, dict):
+            continue
+        items.append(item.value)
+
+    items.sort(key=lambda value: str(value.get("received_at", "")))
+    formatted = [
+        (
+            f"[{item.get('received_at', 'unknown time')}] "
+            f"{item.get('sender', 'unknown sender')} | "
+            f"{item.get('subject', 'no subject')}: "
+            f"{item.get('summary') or item.get('body_excerpt', '')}"
+        )
+        for item in items[-MAX_THREAD_HISTORY_ITEMS:]
+    ]
+    return {"thread_context": formatted}
 
 
 async def retrieve_related_memories(
@@ -143,7 +223,10 @@ async def retrieve_related_memories(
     if runtime.store is None:
         return {"related_memories": []}
 
-    query = "\n".join([state.sender, state.subject, state.normalized_body])
+    query = _truncate_text(
+        "\n".join([state.sender, state.subject, state.normalized_body]),
+        MAX_RETRIEVAL_QUERY_CHARS,
+    )
     memories = await cast(BaseStore, runtime.store).asearch(
         ("memories", runtime.context.user_id),
         query=query,
@@ -161,18 +244,25 @@ async def analyze_email(
     state: EmailState, runtime: Runtime[Context]
 ) -> dict[str, Any]:
     """Classify the email and extract durable memory candidates."""
-    related = "\n".join(state.related_memories) or "None"
+    related = _truncate_text(
+        "\n".join(state.related_memories),
+        MAX_RELATED_MEMORY_CHARS,
+    ) or "None"
     system_prompt = EMAIL_ANALYSIS_PROMPT.format(
         time=datetime.now().isoformat(),
         related_memories=related,
+        thread_context=_truncate_text("\n".join(state.thread_context), MAX_THREAD_CONTEXT_CHARS)
+        or "None",
     )
+    body = _truncate_text(state.normalized_body, MAX_ANALYSIS_BODY_CHARS)
     user_prompt = f"""Email ID: {state.email_id}
+Thread ID: {state.thread_id}
 From: {state.sender}
 Received at: {state.received_at}
 Subject: {state.subject}
 
 Body:
-{state.normalized_body}
+{body}
 """
 
     llm = utils.load_chat_model(runtime.context.model)
@@ -219,15 +309,41 @@ async def store_memory(
 
     stored: list[str] = []
     for memory in state.memories_to_save:
-        result = await tools.upsert_memory(
-            content=memory["content"],
-            context=memory["context"],
-            user_id=runtime.context.user_id,
-            store=cast(BaseStore, runtime.store),
+        result = await tools.upsert_memory.ainvoke(
+            {
+                "content": memory["content"],
+                "context": memory["context"],
+                "user_id": runtime.context.user_id,
+                "store": cast(BaseStore, runtime.store),
+            }
         )
         stored.append(result)
 
     return {"stored_memories": stored}
+
+
+async def store_thread_context(
+    state: EmailState, runtime: Runtime[Context]
+) -> dict[str, Any]:
+    """Append the current email's compact summary to its thread context."""
+    if runtime.store is None or not state.thread_id:
+        return {}
+
+    await cast(BaseStore, runtime.store).aput(
+        _thread_namespace(runtime.context.user_id, state.thread_id),
+        key=state.email_id,
+        value={
+            "email_id": state.email_id,
+            "sender": state.sender,
+            "subject": state.subject,
+            "received_at": state.received_at,
+            "summary": state.summary or state.subject,
+            "classification": state.classification,
+            "key_info": state.key_info,
+            "body_excerpt": _truncate_text(state.normalized_body, 500),
+        },
+    )
+    return {}
 
 
 async def decide_action(state: EmailState) -> dict[str, str]:
@@ -243,6 +359,7 @@ async def draft_reply(state: EmailState, runtime: Runtime[Context]) -> dict[str,
         return {"draft_reply": state.draft_reply}
 
     llm = utils.load_chat_model(runtime.context.model)
+    body = _truncate_text(state.normalized_body, MAX_ANALYSIS_BODY_CHARS)
     response = await llm.ainvoke(
         [
             {
@@ -256,7 +373,7 @@ async def draft_reply(state: EmailState, runtime: Runtime[Context]) -> dict[str,
                     f"Subject: {state.subject}\n"
                     f"Summary: {state.summary}\n"
                     f"Key info: {json.dumps(state.key_info, ensure_ascii=False)}\n\n"
-                    f"Email body:\n{state.normalized_body}"
+                    f"Email body:\n{body}"
                 ),
             },
         ]
@@ -274,17 +391,21 @@ def route_after_decision(state: EmailState):
 builder = StateGraph(EmailState, context_schema=Context)
 
 builder.add_node(normalize_email)
+builder.add_node(retrieve_thread_context)
 builder.add_node(retrieve_related_memories)
 builder.add_node(analyze_email)
 builder.add_node(store_memory)
+builder.add_node(store_thread_context)
 builder.add_node(decide_action)
 builder.add_node(draft_reply)
 
 builder.add_edge("__start__", "normalize_email")
-builder.add_edge("normalize_email", "retrieve_related_memories")
+builder.add_edge("normalize_email", "retrieve_thread_context")
+builder.add_edge("retrieve_thread_context", "retrieve_related_memories")
 builder.add_edge("retrieve_related_memories", "analyze_email")
 builder.add_edge("analyze_email", "store_memory")
-builder.add_edge("store_memory", "decide_action")
+builder.add_edge("store_memory", "store_thread_context")
+builder.add_edge("store_thread_context", "decide_action")
 builder.add_conditional_edges("decide_action", route_after_decision, ["draft_reply", END])
 builder.add_edge("draft_reply", END)
 

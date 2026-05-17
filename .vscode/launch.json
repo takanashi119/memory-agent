@@ -6,11 +6,16 @@
     "configurations": [
 
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "Python Debugger: Gmail Listener",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "module": "memory_agent.cli",
             "console": "integratedTerminal",
+            "args": [
+                "--model",
+                "ollama/qwen3.6:35b",
+                "--once"
+            ]
             // "args": "${command:pickArgs}"
         }
     ]

@@ -77,10 +77,12 @@ async def store_memory(state: State, runtime: Runtime[Context]):
     # Concurrently execute all upsert_memory calls
     saved_memories = await asyncio.gather(
         *(
-            tools.upsert_memory(
-                **tc["args"],
-                user_id=runtime.context.user_id,
-                store=cast(BaseStore, runtime.store),
+            tools.upsert_memory.ainvoke(
+                {
+                    **tc["args"],
+                    "user_id": runtime.context.user_id,
+                    "store": cast(BaseStore, runtime.store),
+                }
             )
             for tc in tool_calls
         )

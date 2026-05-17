@@ -4,9 +4,11 @@ import uuid
 from typing import Annotated
 
 from langchain_core.tools import InjectedToolArg
-from langchain_core.stores import BaseStore
+from langchain_core.tools import tool
+from langgraph.store.base import BaseStore
 
 
+@tool
 async def upsert_memory(
     content: str,
     context: str,
@@ -37,3 +39,14 @@ async def upsert_memory(
         value={"content": content, "context": context},
     )
     return f"Stored memory {mem_id}"
+
+@tool
+async def write_email(
+    to: str,
+    subject: str,
+    body: str,
+)-> str:
+    """Write an email draft."""
+    # In a real implementation, this would interface with an email API.
+    # For this example, we'll just return the email content.
+    return f"Drafted email to {to} with subject '{subject}' and body:\n{body}"
