@@ -9,6 +9,12 @@ __pycache__/
 
 # memory
 *memories.json
+memory/
+
+#qdrant
+qdrant_storage/
+
+
 # Gmail OAuth credentials and user tokens
 credentials.json
 token.json

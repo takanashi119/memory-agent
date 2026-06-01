@@ -13,7 +13,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 
-from memory_agent import tools, utils
+from memory_agent import prompts, tools, utils
 from memory_agent.context import Context
 
 
@@ -24,48 +24,13 @@ MAX_ANALYSIS_BODY_CHARS = 1_500
 MAX_RELATED_MEMORY_CHARS = 1_000
 MAX_THREAD_CONTEXT_CHARS = 2_000
 MAX_THREAD_HISTORY_ITEMS = 12
+MIN_MEMORY_CONFIDENCE = 0.75
+LONG_TERM_MEMORY_TYPES = {"preference", "contact", "project", "rule", "account"}
+LONG_TERM_MEMORY_SCOPES = {"user", "contact", "project", "account"}
+TRANSIENT_MEMORY_PATTERNS = (
 
-
-EMAIL_ANALYSIS_PROMPT = """You process a single email for a personal memory agent.
-
-Your job:
-1. Summarize the email.
-2. Classify the email.
-3. Extract key information that may matter later.
-4. Decide which facts are worth storing as long-term memories.
-5. Recommend the next action.
-
-Only store stable, useful facts. Do not store one-time codes, credentials,
-advertisements, newsletters, or full email bodies.
-
-Return strict JSON with this shape:
-{{
-  "summary": "short summary",
-  "priority": "important|normal|low",
-  "classification": "meeting|task|personal_info|newsletter|junk|unknown",
-  "key_info": {{}},
-  "memories_to_save": [
-    {{
-    "content": "durable memory", 
-    "context": "why this was inferred from this email",
-    ""
-    }}
-  ],
-  "action": "draft_reply|create_todo|archive|ignore|ask_user",
-  "draft_reply": null
-}}
-
-User email preferences:
-{email_preferences}
-
-Current time: {time}
-
-Related existing memories:
-{related_memories}
-
-Earlier emails in the same conversation:
-{thread_context}
-"""
+    r"\bnewsletter|unsubscribe|receipt|invoice|tracking number\b",
+)
 
 
 @dataclass(kw_only=True)
@@ -106,6 +71,8 @@ class EmailState:
     stored_memories: list[str] = field(default_factory=list)
     action: str | None = None
     draft_reply: str | None = None
+    reply_confirmation_required: bool = False
+    reply_status: str | None = None
 
 
 def _strip_html(value: str) -> str:
@@ -152,15 +119,23 @@ def _coerce_analysis(value: str) -> dict[str, Any]:
         return cast(dict[str, Any], json.loads(match.group(0)))
 
 
-def _memory_items(value: Any) -> list[dict[str, str]]:
+def _memory_items(value: Any) -> list[dict[str, Any]]:
     """Normalize model-produced memory items into tool arguments."""
     if not isinstance(value, list):
         return []
 
-    memories: list[dict[str, str]] = []
+    memories: list[dict[str, Any]] = []
     for item in value:
         if isinstance(item, str) and item.strip():
-            memories.append({"content": item.strip(), "context": "Extracted from email."})
+            memories.append(
+                {
+                    "content": item.strip(),
+                    "context": "Extracted from email.",
+                    "type": "unknown",
+                    "confidence": 0.0,
+                    "scope": "unknown",
+                }
+            )
             continue
 
         if not isinstance(item, dict):
@@ -171,9 +146,72 @@ def _memory_items(value: Any) -> list[dict[str, str]]:
             continue
 
         context = str(item.get("context", "")).strip() or "Extracted from email."
-        memories.append({"content": content, "context": context})
+        memories.append(
+            {
+                "content": content,
+                "context": context,
+                "type": str(item.get("type", "")).strip().lower(),
+                "confidence": _coerce_confidence(item.get("confidence")),
+                "scope": str(item.get("scope", "")).strip().lower(),
+            }
+        )
 
     return memories
+
+
+def _coerce_confidence(value: Any) -> float:
+    """Convert model confidence values to a conservative numeric score."""
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(confidence, 1.0))
+
+
+def _is_long_term_memory_candidate(memory: dict[str, Any], classification: str | None) -> bool:
+    """Return whether a model-proposed memory passes deterministic save gates."""
+    if classification in {"newsletter", "junk"}:
+        return False
+
+    content = str(memory.get("content", "")).strip()
+    if not content:
+        return False
+
+    if memory.get("type") not in LONG_TERM_MEMORY_TYPES:
+        return False
+
+    if memory.get("scope") not in LONG_TERM_MEMORY_SCOPES:
+        return False
+
+    if _coerce_confidence(memory.get("confidence")) < MIN_MEMORY_CONFIDENCE:
+        return False
+
+    lowered = content.lower()
+    return not any(re.search(pattern, lowered) for pattern in TRANSIENT_MEMORY_PATTERNS)
+
+
+def _filter_long_term_memories(
+    memories: list[dict[str, Any]], classification: str | None
+) -> list[dict[str, str]]:
+    """Keep only high-confidence facts suitable for durable memory."""
+    filtered = []
+    for memory in memories:
+        if not _is_long_term_memory_candidate(memory, classification):
+            continue
+
+        context = str(memory["context"]).strip()
+        metadata = (
+            f"type={memory['type']}; "
+            f"scope={memory['scope']}; "
+            f"confidence={_coerce_confidence(memory['confidence']):.2f}"
+        )
+        filtered.append(
+            {
+                "content": str(memory["content"]).strip(),
+                "context": f"{context} ({metadata})",
+            }
+        )
+    return filtered
 
 
 async def normalize_email(state: EmailState) -> dict[str, str]:
@@ -248,9 +286,10 @@ async def analyze_email(
         "\n".join(state.related_memories),
         MAX_RELATED_MEMORY_CHARS,
     ) or "None"
-    system_prompt = EMAIL_ANALYSIS_PROMPT.format(
+    system_prompt = prompts.EMAIL_ANALYSIS_PROMPT.format(
         time=datetime.now().isoformat(),
         related_memories=related,
+        email_preferences="None",
         thread_context=_truncate_text("\n".join(state.thread_context), MAX_THREAD_CONTEXT_CHARS)
         or "None",
     )
@@ -294,7 +333,10 @@ Body:
         "summary": analysis.get("summary"),
         "classification": analysis.get("classification", "unknown"),
         "key_info": analysis.get("key_info") or {},
-        "memories_to_save": _memory_items(analysis.get("memories_to_save")),
+        "memories_to_save": _filter_long_term_memories(
+            _memory_items(analysis.get("memories_to_save")),
+            analysis.get("classification", "unknown"),
+        ),
         "action": analysis.get("action", "ask_user"),
         "draft_reply": analysis.get("draft_reply"),
     }
@@ -381,6 +423,19 @@ async def draft_reply(state: EmailState, runtime: Runtime[Context]) -> dict[str,
     return {"draft_reply": str(response.content)}
 
 
+async def request_reply_confirmation(state: EmailState) -> dict[str, str | bool | None]:
+    """Mark drafted replies as waiting for explicit user approval."""
+    if not state.draft_reply:
+        return {
+            "reply_confirmation_required": False,
+            "reply_status": None,
+        }
+    return {
+        "reply_confirmation_required": True,
+        "reply_status": "pending_user_confirmation",
+    }
+
+
 def route_after_decision(state: EmailState):
     """Route to a drafting step only when a reply is needed."""
     if state.action == "draft_reply":
@@ -398,6 +453,7 @@ builder.add_node(store_memory)
 builder.add_node(store_thread_context)
 builder.add_node(decide_action)
 builder.add_node(draft_reply)
+builder.add_node(request_reply_confirmation)
 
 builder.add_edge("__start__", "normalize_email")
 builder.add_edge("normalize_email", "retrieve_thread_context")
@@ -407,7 +463,8 @@ builder.add_edge("analyze_email", "store_memory")
 builder.add_edge("store_memory", "store_thread_context")
 builder.add_edge("store_thread_context", "decide_action")
 builder.add_conditional_edges("decide_action", route_after_decision, ["draft_reply", END])
-builder.add_edge("draft_reply", END)
+builder.add_edge("draft_reply", "request_reply_confirmation")
+builder.add_edge("request_reply_confirmation", END)
 
 email_graph = builder.compile()
 email_graph.name = "EmailMemoryAgent"

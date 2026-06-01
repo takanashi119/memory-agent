@@ -105,9 +105,8 @@ uv run gmail-listener --token token_main.json --once --max-results 3
 
 The listener stores processed Gmail message IDs in `.gmail_listener_state.json` so
 it does not process the same message again after restarting. The local entrypoint
-uses an in-memory LangGraph store for extracted memories during the process
-lifetime; for durable memory across restarts, run the graph with a persistent
-LangGraph store.
+loads extracted user memories from `memory/{user}_memories` on startup and writes
+the graph's in-memory memories back to that file after each processed message.
 
 The command is assembled in `memory_agent.cli`, while `gmail_listener` only polls
 Gmail and `email_service` owns message de-duplication, graph invocation, and user

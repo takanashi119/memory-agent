@@ -11,10 +11,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from memory_agent.email_service import (
+    ConsoleEmailReplyConfirmer,
     ConsoleEmailNotifier,
     EmailProcessingService,
     JsonProcessedMessageStore,
 )
+from memory_agent.gmail_client import GmailReplySender
 from memory_agent.gmail_listener import GmailListenerSettings, run_gmail_listener
 
 
@@ -40,7 +42,7 @@ def parse_gmail_listener_args() -> GmailListenerCliSettings:
         default=".gmail_listener_state.json",
         help="Local JSON file used to remember processed Gmail message IDs.",
     )
-    parser.add_argument("--query", default="in:inbox newer_than:1d", help="Gmail search query to poll.")
+    parser.add_argument("--query", default="in:inbox", help="Gmail search query to poll.")
     parser.add_argument("--poll-seconds", type=int, default=60, help="Seconds between Gmail checks.")
     parser.add_argument("--max-results", type=int, default=10, help="Maximum messages to inspect per poll.")
     parser.add_argument("--user-id", default="default", help="Memory namespace user ID.")
@@ -76,6 +78,12 @@ async def run_gmail_listener_cli(settings: GmailListenerCliSettings) -> None:
     processor = EmailProcessingService(
         processed_store=JsonProcessedMessageStore(settings.state_path),
         notifier=ConsoleEmailNotifier(),
+        reply_confirmer=ConsoleEmailReplyConfirmer(),
+        reply_sender=GmailReplySender(
+            credentials_path=settings.listener.credentials_path,
+            token_path=settings.listener.token_path,
+            user_id=settings.listener.gmail_user_id,
+        ),
         user_id=settings.user_id,
         model=settings.model,
     )
