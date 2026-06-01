@@ -12,6 +12,7 @@ from langchain_ollama import ChatOllama
 
 from memory_agent import tools, utils
 from memory_agent.context import Context
+from memory_agent.memory_backends import format_memory, memory_backend_from_runtime
 from memory_agent.state import State
 
 
@@ -26,10 +27,18 @@ async def call_model(state: State, runtime: Runtime[Context]) -> dict:
 
     # Retrieve the most recent memories for context
     
-    memories = await cast(BaseStore, runtime.store).asearch(
-        ("memories", user_id),
-        query=str([m.content for m in state.messages[-3:]]),
-        limit=10,
+    memory_backend = memory_backend_from_runtime(
+        runtime.context,
+        cast(BaseStore | None, runtime.store),
+    )
+    memories = (
+        await memory_backend.search(
+            user_id=user_id,
+            query=str([m.content for m in state.messages[-3:]]),
+            limit=10,
+        )
+        if memory_backend is not None
+        else []
     )
     
     # memories = await cast(BaseStore, runtime.store).asearch(
@@ -39,7 +48,7 @@ async def call_model(state: State, runtime: Runtime[Context]) -> dict:
 
     # Format memories for inclusion in the prompt
     formatted = "\n".join(
-        f"[{mem.key}]: {mem.value} (similarity: {mem.score})" for mem in memories
+        format_memory(mem, include_score=True) for mem in memories
     )
     
 #     formatted = "\n".join(
@@ -82,6 +91,10 @@ async def store_memory(state: State, runtime: Runtime[Context]):
                     **tc["args"],
                     "user_id": runtime.context.user_id,
                     "store": cast(BaseStore, runtime.store),
+                    "memory_backend": memory_backend_from_runtime(
+                        runtime.context,
+                        cast(BaseStore | None, runtime.store),
+                    ),
                 }
             )
             for tc in tool_calls

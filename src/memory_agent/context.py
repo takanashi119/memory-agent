@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field, fields
+from typing import Any
 
 from typing_extensions import Annotated
 
@@ -17,7 +18,7 @@ class Context:
 
     model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
         # default="anthropic/claude-sonnet-4-5-20250929",
-        default="ollama/minimax-m2.7:cloud",
+        default="ollama/minimax-m3:cloud",
         metadata={
             "description": "The name of the language model to use for the agent. "
             "Should be in the form: provider/model-name."
@@ -25,6 +26,8 @@ class Context:
     )
 
     system_prompt: str = prompts.SYSTEM_PROMPT
+    memory_backend: Any | None = None
+    """Optional pluggable long-term memory backend."""
 
     def __post_init__(self):
         """Fetch env vars for attributes that were not passed as args."""

@@ -15,6 +15,7 @@ from langgraph.store.base import BaseStore
 
 from memory_agent import prompts, tools, utils
 from memory_agent.context import Context
+from memory_agent.memory_backends import format_memory, memory_backend_from_runtime
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ class EmailState:
 
     related_memories: list[str] = field(default_factory=list)
     """Existing memories retrieved for context."""
+
+    email_preferences: list[str] = field(default_factory=list)
+    """User preference memories relevant to email replies."""
 
     thread_context: list[str] = field(default_factory=list)
     """Earlier emails from the same conversation thread."""
@@ -170,7 +174,7 @@ def _coerce_confidence(value: Any) -> float:
 
 def _is_long_term_memory_candidate(memory: dict[str, Any], classification: str | None) -> bool:
     """Return whether a model-proposed memory passes deterministic save gates."""
-    if classification in {"newsletter", "junk"}:
+    if classification in {"meeting", "newsletter", "junk"}:
         return False
 
     content = str(memory.get("content", "")).strip()
@@ -258,24 +262,55 @@ async def retrieve_related_memories(
     state: EmailState, runtime: Runtime[Context]
 ) -> dict[str, list[str]]:
     """Fetch memories that may help interpret the email."""
-    if runtime.store is None:
+    memory_backend = memory_backend_from_runtime(
+        runtime.context,
+        cast(BaseStore | None, runtime.store),
+    )
+    if memory_backend is None:
         return {"related_memories": []}
 
     query = _truncate_text(
         "\n".join([state.sender, state.subject, state.normalized_body]),
         MAX_RETRIEVAL_QUERY_CHARS,
     )
-    memories = await cast(BaseStore, runtime.store).asearch(
-        ("memories", runtime.context.user_id),
+    memories = await memory_backend.search(
+        user_id=runtime.context.user_id,
         query=query,
         limit=8,
     )
 
-    formatted = [
-        f"[{mem.key}]: {mem.value}"
-        for mem in memories
-    ]
+    formatted = [format_memory(mem) for mem in memories]
     return {"related_memories": formatted}
+
+
+async def retrieve_email_preferences(
+    state: EmailState, runtime: Runtime[Context]
+) -> dict[str, list[str]]:
+    """Fetch user preference memories for reply drafting context."""
+    memory_backend = memory_backend_from_runtime(
+        runtime.context,
+        cast(BaseStore | None, runtime.store),
+    )
+    if memory_backend is None:
+        return {"email_preferences": []}
+
+    query = _truncate_text(
+        "\n".join([state.sender, state.subject, "email reply preferences"]),
+        MAX_RETRIEVAL_QUERY_CHARS,
+    )
+    memories = await memory_backend.search(
+        user_id=runtime.context.user_id,
+        query=query,
+        limit=8,
+    )
+    preferences = []
+    for memory in memories:
+        content = str(memory.value.get("content", ""))
+        context = str(memory.value.get("context", ""))
+        if "preference" not in f"{content} {context}".lower():
+            continue
+        preferences.append(format_memory(memory))
+    return {"email_preferences": preferences}
 
 
 async def analyze_email(
@@ -289,7 +324,8 @@ async def analyze_email(
     system_prompt = prompts.EMAIL_ANALYSIS_PROMPT.format(
         time=datetime.now().isoformat(),
         related_memories=related,
-        email_preferences="None",
+        email_preferences=_truncate_text("\n".join(state.email_preferences), MAX_RELATED_MEMORY_CHARS)
+        or "None",
         thread_context=_truncate_text("\n".join(state.thread_context), MAX_THREAD_CONTEXT_CHARS)
         or "None",
     )
@@ -346,7 +382,11 @@ async def store_memory(
     state: EmailState, runtime: Runtime[Context]
 ) -> dict[str, list[str]]:
     """Persist extracted long-term memories."""
-    if runtime.store is None or not state.memories_to_save:
+    memory_backend = memory_backend_from_runtime(
+        runtime.context,
+        cast(BaseStore | None, runtime.store),
+    )
+    if memory_backend is None or not state.memories_to_save:
         return {"stored_memories": []}
 
     stored: list[str] = []
@@ -356,7 +396,8 @@ async def store_memory(
                 "content": memory["content"],
                 "context": memory["context"],
                 "user_id": runtime.context.user_id,
-                "store": cast(BaseStore, runtime.store),
+                "store": cast(BaseStore | None, runtime.store),
+                "memory_backend": memory_backend,
             }
         )
         stored.append(result)
@@ -448,6 +489,7 @@ builder = StateGraph(EmailState, context_schema=Context)
 builder.add_node(normalize_email)
 builder.add_node(retrieve_thread_context)
 builder.add_node(retrieve_related_memories)
+builder.add_node(retrieve_email_preferences)
 builder.add_node(analyze_email)
 builder.add_node(store_memory)
 builder.add_node(store_thread_context)
@@ -458,7 +500,8 @@ builder.add_node(request_reply_confirmation)
 builder.add_edge("__start__", "normalize_email")
 builder.add_edge("normalize_email", "retrieve_thread_context")
 builder.add_edge("retrieve_thread_context", "retrieve_related_memories")
-builder.add_edge("retrieve_related_memories", "analyze_email")
+builder.add_edge("retrieve_related_memories", "retrieve_email_preferences")
+builder.add_edge("retrieve_email_preferences", "analyze_email")
 builder.add_edge("analyze_email", "store_memory")
 builder.add_edge("store_memory", "store_thread_context")
 builder.add_edge("store_thread_context", "decide_action")

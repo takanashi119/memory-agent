@@ -137,18 +137,24 @@ class EmailProcessingService:
     user_id: str = "default"
     model: str | None = None
     memory_path: str | Path | None = None
+    memory_backend: Any | None = None
 
     def __post_init__(self) -> None:
         """Build the graph runtime dependencies."""
         self._store = InMemoryStore()
-        self._memory_archive = JsonUserMemoryArchive(
-            self.memory_path or user_memory_path(self.user_id)
+        self._memory_archive = (
+            None
+            if self.memory_backend is not None
+            else JsonUserMemoryArchive(self.memory_path or user_memory_path(self.user_id))
         )
-        self._memory_archive.load_into(self._store, self.user_id)
+        if self._memory_archive is not None:
+            self._memory_archive.load_into(self._store, self.user_id)
         self._graph = builder.compile(store=self._store)
         context_kwargs: dict[str, Any] = {"user_id": self.user_id}
         if self.model:
             context_kwargs["model"] = self.model
+        if self.memory_backend is not None:
+            context_kwargs["memory_backend"] = self.memory_backend
         self._context = Context(**context_kwargs)
 
     def is_processed(self, email: dict[str, Any]) -> bool:
@@ -164,7 +170,8 @@ class EmailProcessingService:
         )
         await self._handle_reply_confirmation(result)
         self.processed_store.add(str(email["email_id"]))
-        self._memory_archive.save_from(self._store, self.user_id)
+        if self._memory_archive is not None:
+            self._memory_archive.save_from(self._store, self.user_id)
         await self.notifier.notify(result)
         return result
 

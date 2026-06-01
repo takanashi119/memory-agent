@@ -7,6 +7,11 @@ from langchain_core.tools import InjectedToolArg
 from langchain_core.tools import tool
 from langgraph.store.base import BaseStore
 
+from memory_agent.memory_backends import (
+    LangGraphMemoryBackend,
+    MemoryBackend,
+)
+
 
 @tool
 async def upsert_memory(
@@ -16,7 +21,8 @@ async def upsert_memory(
     memory_id: uuid.UUID | None = None,
     # Hide these arguments from the model.
     user_id: Annotated[str, InjectedToolArg],
-    store: Annotated[BaseStore, InjectedToolArg],
+    store: Annotated[BaseStore | None, InjectedToolArg] = None,
+    memory_backend: Annotated[MemoryBackend | None, InjectedToolArg] = None,
 ):
     """Upsert a memory in the database.
 
@@ -32,11 +38,17 @@ async def upsert_memory(
         memory_id: ONLY PROVIDE IF UPDATING AN EXISTING MEMORY.
         The memory to overwrite.
     """
-    mem_id = memory_id or uuid.uuid4()
-    await store.aput(
-        ("memories", user_id),
-        key=str(mem_id),
-        value={"content": content, "context": context},
+    backend = memory_backend
+    if backend is None and store is not None:
+        backend = LangGraphMemoryBackend(store)
+    if backend is None:
+        raise ValueError("upsert_memory requires a memory backend or LangGraph store.")
+
+    mem_id = await backend.upsert(
+        user_id=user_id,
+        content=content,
+        context=context,
+        memory_id=str(memory_id) if memory_id else None,
     )
     return f"Stored memory {mem_id}"
 
