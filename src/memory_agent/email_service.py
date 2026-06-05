@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from langgraph.store.memory import InMemoryStore
-
 from memory_agent.context import Context
 from memory_agent.email_graph import builder
+from memory_agent.memory_backends import EmailMemoryIngestor, MemoryBackend
 
 
 logger = logging.getLogger(__name__)
@@ -137,19 +137,25 @@ class EmailProcessingService:
     user_id: str = "default"
     model: str | None = None
     memory_path: str | Path | None = None
-    memory_backend: Any | None = None
+    memory_backend: MemoryBackend | None = None
+    memory_ingestor: EmailMemoryIngestor | None = None
 
     def __post_init__(self) -> None:
         """Build the graph runtime dependencies."""
-        self._store = InMemoryStore()
-        self._memory_archive = (
-            None
-            if self.memory_backend is not None
-            else JsonUserMemoryArchive(self.memory_path or user_memory_path(self.user_id))
-        )
-        if self._memory_archive is not None:
-            self._memory_archive.load_into(self._store, self.user_id)
-        self._graph = builder.compile(store=self._store)
+
+        self._runtime_memory = InMemoryStore()
+        # self._memory_archive = (
+        #     None
+        #     if self.memory_backend is not None
+        #     else JsonUserMemoryArchive(self.memory_path or user_memory_path(self.user_id))
+        # )
+
+        # if self._memory_archive is not None:
+        #     self._memory_archive.load_into(self._runtime_memory, self.user_id)
+
+        # 后续将不需要memory archive了，mem0+向量记忆库已经可以持久化了
+
+        self._graph = builder.compile(store=self._runtime_memory)
         context_kwargs: dict[str, Any] = {"user_id": self.user_id}
         if self.model:
             context_kwargs["model"] = self.model
@@ -168,12 +174,35 @@ class EmailProcessingService:
             config={"configurable": {"thread_id": f"gmail:{email['email_id']}"}},
             context=self._context,
         )
+        await self._ingest_email_memory(email, result)
         await self._handle_reply_confirmation(result)
         self.processed_store.add(str(email["email_id"]))
-        if self._memory_archive is not None:
-            self._memory_archive.save_from(self._store, self.user_id)
+        # if self._memory_archive is not None:
+        #     self._memory_archive.save_from(self._runtime_memory, self.user_id)
         await self.notifier.notify(result)
         return result
+
+    async def _ingest_email_memory(
+        self, email: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        if self.memory_ingestor is None:
+            return
+
+        try:
+            memory_id = await self.memory_ingestor.ingest_email(
+                user_id=self.user_id,
+                email=email,
+                result=result,
+            )
+        except Exception as exc:
+            logger.exception("Failed to ingest email into long-term memory.")
+            result["memory_ingest_status"] = "failed"
+            result["memory_ingest_error"] = str(exc)
+            return
+
+        result["memory_ingest_status"] = "ingested"
+        if memory_id:
+            result["memory_ingest_id"] = memory_id
 
     async def _handle_reply_confirmation(self, result: dict[str, Any]) -> None:
         draft_reply = result.get("draft_reply")
@@ -206,51 +235,51 @@ class EmailProcessingService:
         result["sent_reply_id"] = sent_message_id
 
 
-class JsonUserMemoryArchive:
-    """Persist one user's in-memory LangGraph memories to a local JSON file."""
+# class JsonUserMemoryArchive:
+#     """Persist one user's in-memory LangGraph memories to a local JSON file."""
 
-    def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
+#     def __init__(self, path: str | Path) -> None:
+#         self.path = Path(path)
 
-    def load_into(self, store: InMemoryStore, user_id: str) -> None:
-        """Load archived memories into the graph's in-memory store."""
-        if not self.path.exists():
-            return
+#     def load_into(self, store: InMemoryStore, user_id: str) -> None:
+#         """Load archived memories into the graph's in-memory store."""
+#         if not self.path.exists():
+#             return
 
-        try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            logger.warning("Ignoring invalid user memory file: %s", self.path)
-            return
+#         try:
+#             payload = json.loads(self.path.read_text(encoding="utf-8"))
+#         except json.JSONDecodeError:
+#             logger.warning("Ignoring invalid user memory file: %s", self.path)
+#             return
 
-        memories = _memory_items_from_payload(payload)
-        namespace = ("memories", user_id)
-        for memory in memories:
-            key = str(memory.get("key", "")).strip()
-            value = memory.get("value")
-            if key and isinstance(value, dict):
-                store.put(namespace, key, value)
+#         memories = _memory_items_from_payload(payload)
+#         namespace = ("memories", user_id)
+#         for memory in memories:
+#             key = str(memory.get("key", "")).strip()
+#             value = memory.get("value")
+#             if key and isinstance(value, dict):
+#                 store.put(namespace, key, value)
 
-    def save_from(self, store: InMemoryStore, user_id: str) -> None:
-        """Write the graph's current in-memory memories to disk."""
-        namespace = ("memories", user_id)
-        memories = [
-            {
-                "key": item.key,
-                "value": item.value,
-            }
-            for item in _all_memories(store, namespace)
-        ]
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "updated_at": datetime.now().isoformat(),
-            "user_id": user_id,
-            "memories": memories,
-        }
-        self.path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+#     def save_from(self, store: InMemoryStore, user_id: str) -> None:
+#         """Write the graph's current in-memory memories to disk."""
+#         namespace = ("memories", user_id)
+#         memories = [
+#             {
+#                 "key": item.key,
+#                 "value": item.value,
+#             }
+#             for item in _all_memories(store, namespace)
+#         ]
+#         self.path.parent.mkdir(parents=True, exist_ok=True)
+#         payload = {
+#             "updated_at": datetime.now().isoformat(),
+#             "user_id": user_id,
+#             "memories": memories,
+#         }
+#         self.path.write_text(
+#             json.dumps(payload, ensure_ascii=False, indent=2),
+#             encoding="utf-8",
+#         )
 
 
 def user_memory_path(user_id: str, root: str | Path = "memory") -> Path:
@@ -284,7 +313,6 @@ def _all_memories(store: InMemoryStore, namespace: tuple[str, str]) -> list[Any]
 
 def format_email_feedback(result: dict[str, Any]) -> str:
     """Format one processed email result for human-readable output."""
-    stored = result.get("stored_memories") or []
     draft_reply = result.get("draft_reply")
     lines = [
         "",
@@ -295,9 +323,12 @@ def format_email_feedback(result: dict[str, Any]) -> str:
         f"  summary: {result.get('summary')}",
         # f"  class/action: {result.get('classification')} / {result.get('action')}",
         f"  class: {result.get('classification')}",
-        f"  memories saved: {len(stored)}",
         f"  "
     ]
+    if result.get("memory_ingest_status"):
+        lines.append(f"  memory ingest: {result.get('memory_ingest_status')}")
+    if result.get("memory_ingest_error"):
+        lines.append(f"  memory ingest error: {result.get('memory_ingest_error')}")
     if result.get("reply_status"):
         lines.append(f"  reply status: {result.get('reply_status')}")
     if result.get("sent_reply_id"):

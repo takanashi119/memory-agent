@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
@@ -47,6 +48,20 @@ class MemoryBackend(Protocol):
 
     async def list(self, *, user_id: str, limit: int = 100) -> list[MemoryRecord]:
         """Return memories without requiring a semantic query."""
+
+
+@runtime_checkable
+class EmailMemoryIngestor(Protocol):
+    """Interface for extracting durable memories from processed raw emails."""
+
+    async def ingest_email(
+        self,
+        *,
+        user_id: str,
+        email: dict[str, Any],
+        result: dict[str, Any],
+    ) -> str | None:
+        """Ingest one raw email and its graph analysis into long-term memory."""
 
 
 class LangGraphMemoryBackend:
@@ -138,7 +153,7 @@ class Mem0MemoryBackend:
             raw = await asyncio.to_thread(
                 self.memory.search,
                 query=query,
-                user_id=user_id,
+                filters={"user_id": user_id},
                 limit=limit,
             )
         else:
@@ -150,6 +165,22 @@ class Mem0MemoryBackend:
 
     async def list(self, *, user_id: str, limit: int = 100) -> list[MemoryRecord]:
         return await self.search(user_id=user_id, limit=limit)
+
+    async def ingest_email(
+        self,
+        *,
+        user_id: str,
+        email: dict[str, Any],
+        result: dict[str, Any],
+    ) -> str | None:
+        """Let mem0 extract memories from the raw email plus graph analysis."""
+        raw = await asyncio.to_thread(
+            self.memory.add,
+            _email_ingest_messages(email, result),
+            user_id=user_id,
+            metadata=_email_ingest_metadata(email, result),
+        )
+        return _extract_mem0_id(raw)
 
 
 def memory_backend_from_runtime(context: Any, store: BaseStore | None) -> MemoryBackend | None:
@@ -197,6 +228,47 @@ def _extract_mem0_id(result: Any) -> str | None:
     if isinstance(result, list) and result:
         return _extract_mem0_id(result[0])
     return None
+
+
+def _email_ingest_messages(
+    email: dict[str, Any], result: dict[str, Any]
+) -> list[dict[str, str]]:
+    user_content = (
+        "Incoming email\n"
+        f"Email ID: {email.get('email_id')}\n"
+        f"Thread ID: {email.get('thread_id')}\n"
+        f"From: {email.get('sender')}\n"
+        f"Subject: {email.get('subject')}\n"
+        f"Received at: {email.get('received_at')}\n\n"
+        f"{email.get('body', '')}"
+    )
+    assistant_content = (
+        "Email analysis\n"
+        f"Summary: {result.get('summary')}\n"
+        f"Classification: {result.get('classification')}\n"
+        f"Key info: {json.dumps(result.get('key_info') or {}, ensure_ascii=False)}\n"
+        f"Action: {result.get('action')}\n"
+        f"Draft reply: {result.get('draft_reply') or ''}"
+    )
+    return [
+        {"role": "user", "content": user_content},
+        {"role": "assistant", "content": assistant_content},
+    ]
+
+
+def _email_ingest_metadata(
+    email: dict[str, Any], result: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "source": "email",
+        "email_id": str(email.get("email_id", "")),
+        "thread_id": str(email.get("thread_id", "")),
+        "sender": str(email.get("sender", "")),
+        "subject": str(email.get("subject", "")),
+        "received_at": str(email.get("received_at", "")),
+        "classification": str(result.get("classification", "")),
+        "action": str(result.get("action", "")),
+    }
 
 
 def _records_from_mem0(raw: Any) -> list[MemoryRecord]:

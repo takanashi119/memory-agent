@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -18,6 +20,10 @@ from memory_agent.email_service import (
 )
 from memory_agent.gmail_client import GmailReplySender
 from memory_agent.gmail_listener import GmailListenerSettings, run_gmail_listener
+from memory_agent.memory_backends import EmailMemoryIngestor, MemoryBackend, Mem0MemoryBackend
+
+
+DEFAULT_MEM0_CONFIG_PATH = Path("memory/mem0_config.json")
 
 
 @dataclass(kw_only=True)
@@ -28,6 +34,8 @@ class GmailListenerCliSettings:
     state_path: Path
     user_id: str
     model: str | None
+    memory_backend: str | None
+    mem0_config_path: Path
 
 
 def parse_gmail_listener_args() -> GmailListenerCliSettings:
@@ -50,6 +58,17 @@ def parse_gmail_listener_args() -> GmailListenerCliSettings:
     parser.add_argument("--model", default=None, help="Override Context.model, e.g. openai/gpt-4.1-mini.")
     parser.add_argument("--once", action="store_true", help="Run one polling cycle and exit.")
     parser.add_argument("--log-level", default="INFO", help="Python logging level.")
+    parser.add_argument(
+        "--memory-backend",
+        choices=("langgraph", "mem0"),
+        default="mem0",
+        help="Optional memory backend type. Defaults to LangGraph store.",
+    )
+    parser.add_argument(
+        "--mem0-config",
+        default=str(DEFAULT_MEM0_CONFIG_PATH),
+        help=f"Path to mem0 config JSON. Defaults to {DEFAULT_MEM0_CONFIG_PATH}.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -70,11 +89,52 @@ def parse_gmail_listener_args() -> GmailListenerCliSettings:
         state_path=Path(args.state),
         user_id=args.user_id,
         model=args.model,
+        memory_backend=args.memory_backend,
+        mem0_config_path=Path(args.mem0_config),
     )
+
+
+def build_memory_backend(
+    backend_name: str | None,
+    *,
+    mem0_config_path: Path = DEFAULT_MEM0_CONFIG_PATH,
+) -> MemoryBackend | None:
+    """Build the configured long-term memory backend for the CLI."""
+    if backend_name is None or backend_name == "langgraph":
+        return None
+
+    if backend_name == "mem0":
+        config = _load_mem0_config(mem0_config_path)
+        return Mem0MemoryBackend.from_config(config)
+
+    raise ValueError(f"Unsupported memory backend: {backend_name}")
+
+
+def _load_mem0_config(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise FileNotFoundError(f"mem0 config file does not exist: {path}")
+
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"mem0 config file is not valid JSON: {path}") from exc
+
+    if not isinstance(config, dict):
+        raise ValueError(f"mem0 config must be a JSON object: {path}")
+    return config
 
 
 async def run_gmail_listener_cli(settings: GmailListenerCliSettings) -> None:
     """Assemble and run the Gmail listener from CLI settings."""
+    memory_backend = build_memory_backend(
+        settings.memory_backend,
+        mem0_config_path=settings.mem0_config_path,
+    )
+    memory_ingestor = (
+        memory_backend
+        if isinstance(memory_backend, EmailMemoryIngestor)
+        else None
+    )
     processor = EmailProcessingService(
         processed_store=JsonProcessedMessageStore(settings.state_path),
         notifier=ConsoleEmailNotifier(),
@@ -86,6 +146,8 @@ async def run_gmail_listener_cli(settings: GmailListenerCliSettings) -> None:
         ),
         user_id=settings.user_id,
         model=settings.model,
+        memory_backend=memory_backend,
+        memory_ingestor=memory_ingestor,
     )
     await run_gmail_listener(settings.listener, processor)
 
